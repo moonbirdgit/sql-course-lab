@@ -17,3 +17,4 @@
 ## 本機預覽
 
 直接用瀏覽器開啟 `index.html` 即可（需要網路載入 sql.js）。
+# sql-course-lab
