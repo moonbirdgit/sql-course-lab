@@ -1,0 +1,1457 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="大學選課與課表資料庫的 SQL 練習：案例背景、ERD、可執行的查詢與結果比較。">
+<style>html{color-scheme:light}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>選課與課表資料庫</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;800&display=swap">
+<style>
+/* Layout: a single registrar's workbook — four numbered sections in assignment order, timetable grid as the subject's signature, dark code panels for SQL. */
+:root {
+  --bg: #f3f5fa;
+  --surface: #ffffff;
+  --sunken: #eaeef7;
+  --ink: #18203d;
+  --muted: #59627f;
+  --line: #d6dcea;
+  --accent: #2c40bf;
+  --accent-soft: #e2e6ff;
+  --marker-bg: #ffe57a;
+  --marker-ink: #3a2e00;
+  --add: #17724b;
+  --add-bg: #dff3e8;
+  --del: #b02d36;
+  --del-bg: #fbe3e5;
+  --code-bg: #141a33;
+  --code-fg: #e3e7f7;
+  --code-muted: #8f98bd;
+  --code-kw: #9fb0ff;
+  --code-str: #ffd479;
+  --f-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --f-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1120; --surface: #161a2c; --sunken: #1c2136; --ink: #e5e8f5; --muted: #9aa1c0; --line: #2b3150;
+    --accent: #95a3ff; --accent-soft: #262d58; --marker-bg: #5c4b0e; --marker-ink: #fff0b5;
+    --add: #74d6a6; --add-bg: #133627; --del: #ff9aa1; --del-bg: #40191f;
+    --code-bg: #0a0d1a; --code-fg: #e3e7f7; --code-muted: #8790b5; --code-kw: #a9b6ff; --code-str: #ffd479;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1120; --surface: #161a2c; --sunken: #1c2136; --ink: #e5e8f5; --muted: #9aa1c0; --line: #2b3150;
+  --accent: #95a3ff; --accent-soft: #262d58; --marker-bg: #5c4b0e; --marker-ink: #fff0b5;
+  --add: #74d6a6; --add-bg: #133627; --del: #ff9aa1; --del-bg: #40191f;
+  --code-bg: #0a0d1a; --code-fg: #e3e7f7; --code-muted: #8790b5; --code-kw: #a9b6ff; --code-str: #ffd479;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.wrap { max-width: 1160px; margin: 0 auto; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(28px, 4.4vw, 42px); line-height: 1.2; letter-spacing: .01em; }
+h2 { font-family: var(--f-display); font-weight: 800; font-size: clamp(22px, 3vw, 28px); line-height: 1.3; }
+h3 { font-size: 16px; font-weight: 700; line-height: 1.4; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: .92em; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+.top { padding-block: 28px 20px; display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.top .eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.top .lede { color: var(--muted); max-width: 60ch; margin-top: 6px; }
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); white-space: nowrap; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status.ready .dot { background: var(--add); }
+.status.fail .dot { background: var(--del); }
+nav.toc { display: flex; flex-wrap: wrap; gap: 6px 22px; padding-block: 14px; font-size: 14px; }
+nav.toc a { text-decoration: none; color: var(--ink); display: inline-flex; gap: 8px; align-items: baseline; }
+nav.toc a span { font-family: var(--f-mono); color: var(--accent); font-weight: 600; }
+nav.toc a:hover { color: var(--accent); }
+
+section.block { padding-block: 40px 8px; scroll-margin-top: 12px; }
+.sec-head { display: flex; gap: 14px; align-items: baseline; margin-bottom: 20px; }
+.sec-head .num { font-family: var(--f-mono); font-weight: 600; color: var(--accent); font-size: 15px; border: 1.5px solid var(--accent); border-radius: 6px; padding: 0 7px; line-height: 1.6; }
+.sec-head p { color: var(--muted); font-size: 14px; }
+.sec-head > div { display: grid; gap: 4px; min-width: 0; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.label { font-size: 12px; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+
+/* 1 Case */
+.case-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; align-items: start; }
+.case-text { display: grid; gap: 20px; min-width: 0; }
+.case-text .story { max-width: 62ch; }
+.users { display: grid; gap: 10px; }
+.user { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; padding: 12px 14px; }
+.user b { font-weight: 700; }
+.user .needs { color: var(--muted); font-size: 14px; }
+.qlinks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.qlink { font-family: var(--f-mono); font-size: 12px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--sunken); cursor: pointer; color: var(--accent); line-height: 1.9; }
+.qlink:hover { border-color: var(--accent); }
+
+.tt { padding: 16px; min-width: 0; }
+.tt-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; margin-bottom: 12px; }
+.tt-scroll { overflow-x: auto; }
+table.timetable { border-collapse: separate; border-spacing: 3px; width: 100%; min-width: 440px; table-layout: fixed; font-size: 13px; }
+.timetable th { font-weight: 500; color: var(--muted); font-size: 12px; padding: 2px; }
+.timetable th.p { width: 52px; text-align: right; padding-right: 8px; font-family: var(--f-mono); }
+.timetable td { height: 40px; background: var(--sunken); border-radius: 5px; padding: 3px 6px; vertical-align: top; line-height: 1.35; }
+.timetable td.on { background: var(--accent-soft); color: var(--ink); }
+.timetable td.on .rm { display: block; font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.timetable td.clash { background: var(--marker-bg); color: var(--marker-ink); box-shadow: inset 0 0 0 1.5px var(--marker-ink); }
+.timetable td.clash .rm { color: var(--marker-ink); }
+.tt-note { margin-top: 10px; font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: var(--marker-bg); box-shadow: inset 0 0 0 1.5px var(--marker-ink); vertical-align: -2px; }
+
+/* 2 Design */
+.erd-wrap { padding: 12px; overflow-x: auto; }
+.erd-wrap svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.erd-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); padding: 10px 14px 0; }
+.key { font-family: var(--f-mono); font-size: 11px; font-weight: 600; padding: 0 5px; border-radius: 4px; line-height: 1.7; }
+.key.pk { background: var(--accent); color: var(--surface); }
+.key.fk { border: 1px solid var(--accent); color: var(--accent); }
+.design-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }
+.design-cols .panel { padding: 16px 18px; min-width: 0; }
+ul.rels, ol.reasons { margin: 10px 0 0; padding-left: 0; list-style: none; display: grid; gap: 10px; }
+ul.rels li { display: grid; grid-template-columns: minmax(0, 210px) minmax(0, 1fr); gap: 10px; font-size: 14px; }
+ul.rels .card-n { font-family: var(--f-mono); font-size: 13px; }
+ul.rels .card-n em { font-style: normal; color: var(--accent); font-weight: 600; }
+ol.reasons { counter-reset: r; }
+ol.reasons li { font-size: 14px; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; }
+ol.reasons li::before { counter-increment: r; content: counter(r); font-family: var(--f-mono); color: var(--accent); font-weight: 600; }
+ol.reasons b { display: block; }
+ol.reasons span { color: var(--muted); }
+
+.tabs { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; }
+.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; cursor: pointer; white-space: nowrap; font-size: 14px; display: inline-flex; gap: 6px; align-items: baseline; }
+.tab .mono { font-size: 13px; }
+.tab small { color: var(--muted); font-size: 12px; }
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.tab[aria-selected="true"] small { color: inherit; opacity: .8; }
+.tbl-browser { margin-top: 28px; display: grid; gap: 12px; }
+.tbl-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; }
+.tbl-detail .panel { padding: 14px 16px; min-width: 0; }
+.tbl-detail .purpose { color: var(--muted); font-size: 14px; margin: 4px 0 10px; }
+
+/* Data tables */
+.dt-scroll { overflow: auto; max-height: 380px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table.dt { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.dt th, .dt td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.dt thead th { position: sticky; top: 0; background: var(--sunken); font-weight: 600; font-size: 12px; z-index: 1; }
+.dt td.num { text-align: right; font-family: var(--f-mono); }
+.dt td.id { font-family: var(--f-mono); }
+.dt td.wrap { white-space: normal; min-width: 160px; }
+.dt .null { font-family: var(--f-mono); font-size: 11px; color: var(--muted); font-style: italic; }
+.dt tr:last-child td { border-bottom: 0; }
+.dt td.mk { width: 22px; padding: 5px 0 5px 8px; font-family: var(--f-mono); font-weight: 700; }
+.dt tr.plus td { background: var(--add-bg); }
+.dt tr.plus td.mk { color: var(--add); }
+.dt tr.minus td { background: var(--del-bg); }
+.dt tr.minus td.mk { color: var(--del); }
+.dt tr.minus td:not(.mk) { text-decoration: line-through; text-decoration-color: var(--del); }
+
+/* 3 Query bench */
+.bench { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; }
+.qlist { display: grid; gap: 4px; position: sticky; top: 12px; }
+.qitem { text-align: left; border: 1px solid transparent; background: none; border-radius: 8px; padding: 7px 10px; cursor: pointer; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 6px; line-height: 1.4; }
+.qitem .qn { font-family: var(--f-mono); font-weight: 600; color: var(--muted); font-size: 13px; grid-row: span 2; padding-top: 1px; }
+.qitem .qt { font-size: 14px; }
+.qitem .tp { font-size: 11px; color: var(--muted); }
+.qitem:hover { background: var(--surface); border-color: var(--line); }
+.qitem[aria-current="true"] { background: var(--surface); border-color: var(--accent); }
+.qitem[aria-current="true"] .qn { color: var(--accent); }
+.qdetail { display: grid; gap: 16px; min-width: 0; }
+.qhead { display: grid; gap: 6px; }
+.qhead .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--muted); }
+.chip { font-family: var(--f-mono); font-size: 12px; padding: 0 8px; border-radius: 999px; background: var(--sunken); border: 1px solid var(--line); color: var(--ink); line-height: 1.8; }
+.topic { font-size: 12px; font-weight: 700; padding: 0 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); line-height: 1.8; }
+.who { color: var(--muted); }
+.steps { padding: 14px 18px; }
+.steps ol { margin: 8px 0 0; padding-left: 1.3em; display: grid; gap: 4px; font-size: 14px; }
+
+.editor { background: var(--code-bg); border-radius: var(--r); overflow: hidden; }
+.ed-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-bottom: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
+.ed-bar .lbl { color: var(--code-muted); font-size: 12px; letter-spacing: .06em; font-weight: 700; }
+.ed-bar .lbl kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid rgba(255,255,255,.2); border-radius: 4px; padding: 0 4px; margin-left: 6px; font-weight: 400; }
+.ed-actions { display: flex; gap: 8px; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 5px 14px; cursor: pointer; font-size: 14px; font-weight: 500; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 700; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.editor .btn { background: transparent; color: var(--code-fg); border-color: rgba(255,255,255,.22); }
+.editor .btn.primary { background: var(--code-kw); border-color: var(--code-kw); color: var(--code-bg); }
+textarea#sql-input { display: block; width: 100%; min-height: 230px; resize: vertical; border: 0; background: transparent; color: var(--code-fg); font-family: var(--f-mono); font-size: 13.5px; line-height: 1.65; padding: 14px 16px; tab-size: 2; white-space: pre; overflow: auto; }
+textarea#sql-input:focus { outline: none; }
+.editor:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+.ed-note { color: var(--code-muted); font-size: 12px; padding: 0 16px 10px; }
+
+.results { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.res { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.res-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.res-head h3 { font-size: 15px; }
+.res-head .cnt { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.badge { font-size: 12px; font-weight: 700; padding: 0 9px; border-radius: 999px; line-height: 1.9; }
+.badge.ok { background: var(--add-bg); color: var(--add); }
+.badge.warn { background: var(--marker-bg); color: var(--marker-ink); }
+.badge.bad { background: var(--del-bg); color: var(--del); }
+.err { border: 1px solid var(--del); background: var(--del-bg); color: var(--ink); border-radius: 8px; padding: 12px 14px; font-size: 14px; display: grid; gap: 4px; }
+.err code { color: var(--del); font-weight: 600; word-break: break-word; }
+.empty { border: 1px dashed var(--line); border-radius: 8px; padding: 18px; color: var(--muted); font-size: 14px; }
+.diffnote { font-size: 13px; color: var(--muted); }
+.missing { display: grid; gap: 6px; }
+
+/* 4 Compare */
+.cmp { display: grid; gap: 16px; }
+.cmp-intro { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.cmp-card { padding: 18px; display: grid; gap: 18px; }
+.explain { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.explain > div { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.explain p { font-size: 14px; }
+.explain .effect p { font-weight: 500; }
+.codeview { background: var(--code-bg); color: var(--code-fg); border-radius: 8px; font-family: var(--f-mono); font-size: 13px; line-height: 1.6; overflow-x: auto; padding: 10px 0; }
+.codeview .ln { display: block; padding: 0 14px 0 34px; white-space: pre; position: relative; min-height: 1.6em; }
+.codeview .ln::before { position: absolute; left: 14px; color: var(--code-muted); }
+.codeview .ln.add { background: rgba(116, 214, 166, .16); }
+.codeview .ln.add::before { content: "+"; color: #74d6a6; }
+.codeview .ln.del { background: rgba(255, 154, 161, .14); color: var(--code-muted); text-decoration: line-through; }
+.codeview .ln.del::before { content: "−"; color: #ff9aa1; }
+.codeview .k { color: var(--code-kw); font-weight: 600; }
+.codeview .s { color: var(--code-str); }
+.cmp-sum { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 14px; }
+.cmp-sum .arrow { color: var(--muted); }
+.cmp-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.cmp-actions small { color: var(--muted); font-size: 13px; }
+
+footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
+
+@media (max-width: 980px) {
+  .case-grid, .tbl-detail, .design-cols, .results { grid-template-columns: minmax(0, 1fr); }
+  .explain { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 860px) {
+  .bench { grid-template-columns: minmax(0, 1fr); }
+  .qlist { position: static; display: flex; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+  .qitem { flex: 0 0 auto; border-color: var(--line); background: var(--surface); grid-template-columns: auto auto; }
+  .qitem .qn { grid-row: auto; }
+  .qitem .tp { display: none; }
+  ul.rels li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+@media (max-width: 520px) {
+  .user { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  body { font-size: 14.5px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">115 學年度第 1 學期 · SQLite 練習資料庫</div>
+      <h1>選課與課表資料庫</h1>
+      <p class="lede">一所大學的選課系統：誰修了哪門課、課排在星期幾第幾節、有沒有衝堂、成績登了沒。所有查詢都在瀏覽器裡的 SQLite 實際執行。</p>
+    </div>
+    <span class="status" id="status"><span class="dot"></span><span id="status-text">SQLite 載入中…</span></span>
+  </header>
+  <nav class="toc" aria-label="章節">
+    <a href="#case"><span>1</span>案例背景</a>
+    <a href="#design"><span>2</span>資料庫設計</a>
+    <a href="#query"><span>3</span>查詢操作</a>
+    <a href="#compare"><span>4</span>結果比較</a>
+  </nav>
+
+  <!-- 1 -->
+  <section class="block" id="case">
+    <div class="sec-head"><span class="num">1</span><div><h2>案例背景</h2><p>資料庫給誰用、要解決什麼問題</p></div></div>
+    <div class="case-grid">
+      <div class="case-text">
+        <p class="story">過去課程時間、選課名單和成績分別放在不同的試算表裡。一門課改了上課時間，要同時改好幾個檔案；學生選到衝堂的課，也只能靠系辦人工比對。這個資料庫把系所、教師、學生、課程、上課時段和選課紀錄放在一起，讓下面三種人都能用 SQL 直接得到答案。</p>
+        <div class="users">
+          <div class="user panel"><b>學生</b><div><div class="needs">看自己的週課表；加退選時知道有沒有選到衝堂的課。</div><div class="qlinks" data-q="q9,q8"></div></div></div>
+          <div class="user panel"><b>授課教師</b><div><div class="needs">看修課名單，比較每位學生和同班平均的差距。</div><div class="qlinks" data-q="q7,q3"></div></div></div>
+          <div class="user panel"><b>系辦、註冊組、教務處</b><div><div class="needs">發通知要名單、統計老師開課數、檢查學分是否足夠、追蹤成績登錄進度。</div><div class="qlinks" data-q="q1,q2,q4,q5,q6"></div></div></div>
+        </div>
+      </div>
+      <div class="tt panel">
+        <div class="tt-head"><h3>王小明（B113001）的週課表</h3><span class="label">由 Q9 查詢產生</span></div>
+        <div class="tt-scroll"><table class="timetable" id="timetable" aria-label="王小明週課表"></table></div>
+        <div class="tt-note"><span class="swatch"></span><span id="tt-note">黃色格子是衝堂：同一節排了兩門課。Q8 會把它找出來。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="block" id="design">
+    <div class="sec-head"><span class="num">2</span><div><h2>資料庫設計</h2><p>ERD、欄位說明與樣本資料</p></div></div>
+    <div class="panel">
+      <div class="erd-legend"><span><span class="key pk">PK</span> 主鍵：唯一識別一列</span><span><span class="key fk">FK</span> 外來鍵：指向另一張表的主鍵</span><span>箭頭：外來鍵 → 被參照的主鍵，旁邊標示 1 對 N</span></div>
+      <div class="erd-wrap" id="erd"></div>
+    </div>
+    <div class="design-cols">
+      <div class="panel">
+        <h3>表與表的關係</h3>
+        <ul class="rels">
+          <li><span class="card-n">department <em>1 : N</em> student</span><span>一個系有很多學生，每位學生只主修一個系。</span></li>
+          <li><span class="card-n">department <em>1 : N</em> teacher</span><span>每位老師隸屬一個系所。</span></li>
+          <li><span class="card-n">department <em>1 : N</em> course</span><span>每門課由一個系所開設。</span></li>
+          <li><span class="card-n">teacher <em>1 : N</em> course</span><span>一門課由一位老師授課（本案例不處理合授）。</span></li>
+          <li><span class="card-n">course <em>1 : N</em> course_time</span><span>一門課每週可以有好幾段上課時間。</span></li>
+          <li><span class="card-n">student <em>N : M</em> course</span><span>一個學生修很多課，一門課有很多學生，靠 enrollment 連起來。</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>為什麼這樣設計</h3>
+        <ol class="reasons">
+          <li><div><b>上課時間獨立成 course_time</b><span>資料結構一週上兩次（週二 2–3 節、週四第 2 節）。如果把時間塞進 course，就得開 time1、time2 欄位或存成一段文字，Q8 就沒辦法用 SQL 直接比較節次找衝堂。拆開後，一列就是一段時間。</span></div></li>
+          <li><div><b>enrollment 用（學號, 課號）當主鍵</b><span>學生和課程是多對多，必須用中間表連接。兩欄合起來當主鍵，保證同一位學生不會重複選同一門課。成績屬於「這一次選課」，所以放在這張表。</span></div></li>
+          <li><div><b>score 允許 NULL</b><span>還沒登分和考 0 分是兩回事。Q5 示範兩種算法的平均差多少。</span></div></li>
+          <li><div><b>系名只存一次</b><span>student、teacher、course 都只存 dept_id，系名只在 department。系所改名只要改一列，不會出現同一系兩種寫法。</span></div></li>
+          <li><div><b>用 CHECK 擋掉不合理的值</b><span>年級 1–4、星期 1–5、開始節次 ≤ 結束節次、成績 0–100。資料寫入時就會被擋下，不用等查詢時才發現。</span></div></li>
+        </ol>
+      </div>
+    </div>
+    <div class="tbl-browser">
+      <h3>欄位說明與樣本資料</h3>
+      <div class="tabs" role="tablist" id="tbl-tabs"></div>
+      <div class="tbl-detail" id="tbl-detail"></div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="block" id="query">
+    <div class="sec-head"><span class="num">3</span><div><h2>查詢操作</h2><p>選一個問題，看範例 SQL 和預期結果；修改 SQL 後按執行，比對實際結果或錯誤訊息</p></div></div>
+    <div class="bench">
+      <div class="qlist" id="qlist" role="list"></div>
+      <div class="qdetail">
+        <div class="qhead">
+          <div class="meta"><span class="topic" id="q-topic"></span><span id="q-tables"></span></div>
+          <h2 id="q-title"></h2>
+          <p class="who" id="q-who"></p>
+        </div>
+        <div class="steps panel"><span class="label">這段 SQL 怎麼想</span><ol id="q-steps"></ol></div>
+        <div class="editor">
+          <div class="ed-bar">
+            <span class="lbl">SQL<kbd>Ctrl / ⌘ + Enter 執行</kbd></span>
+            <div class="ed-actions">
+              <button class="btn" id="btn-reset" type="button">還原範例</button>
+              <button class="btn primary" id="btn-run" type="button" disabled>執行</button>
+            </div>
+          </div>
+          <textarea id="sql-input" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="SQL 編輯器"></textarea>
+          <p class="ed-note">每次執行都從原始樣本資料開始，INSERT、UPDATE、DELETE 不會保留。寫多個陳述式時，顯示最後一個的結果。</p>
+        </div>
+        <div class="results">
+          <div class="res"><div class="res-head"><h3>預期結果</h3><span class="cnt" id="exp-cnt"></span></div><div id="exp-out"><div class="empty">SQLite 載入後顯示。</div></div></div>
+          <div class="res"><div class="res-head"><h3>實際結果</h3><span class="cnt" id="act-cnt"></span><span id="act-badge"></span></div><div id="act-out"><div class="empty">尚未執行。</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="block" id="compare">
+    <div class="sec-head"><span class="num">4</span><div><h2>結果比較</h2><p>同一個問題，改一處 SQL，結果怎麼變、為什麼</p></div></div>
+    <div class="cmp">
+      <div class="cmp-intro"><span class="label">目前問題</span><b id="cmp-q"></b></div>
+      <div class="tabs" role="tablist" id="var-tabs"></div>
+      <div class="cmp-card panel" id="cmp-card"></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>樣本資料為虛構，共 6 張表、66 筆資料。學號 B 開頭加入學學年度，例如 B113 為 113 學年入學。</span>
+    <span>SQL 引擎：sql.js（SQLite 編譯成 JavaScript），所有查詢只在你的瀏覽器執行。</span>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-asm.js"></script>
+<script>
+var APP_DATA = (function () {
+  var SEED_SQL = `
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE department (
+  dept_id    TEXT PRIMARY KEY,
+  dept_name  TEXT NOT NULL UNIQUE,
+  building   TEXT NOT NULL
+);
+
+CREATE TABLE teacher (
+  teacher_id TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  dept_id    TEXT NOT NULL REFERENCES department(dept_id),
+  title      TEXT NOT NULL
+);
+
+CREATE TABLE student (
+  student_id TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  dept_id    TEXT NOT NULL REFERENCES department(dept_id),
+  grade      INTEGER NOT NULL CHECK (grade BETWEEN 1 AND 4)
+);
+
+CREATE TABLE course (
+  course_id   TEXT PRIMARY KEY,
+  course_name TEXT NOT NULL,
+  credits     INTEGER NOT NULL CHECK (credits BETWEEN 1 AND 4),
+  course_type TEXT NOT NULL CHECK (course_type IN ('必修','選修','通識')),
+  dept_id     TEXT NOT NULL REFERENCES department(dept_id),
+  teacher_id  TEXT NOT NULL REFERENCES teacher(teacher_id)
+);
+
+CREATE TABLE course_time (
+  course_id    TEXT NOT NULL REFERENCES course(course_id),
+  weekday      INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 5),
+  start_period INTEGER NOT NULL,
+  end_period   INTEGER NOT NULL,
+  room         TEXT NOT NULL,
+  PRIMARY KEY (course_id, weekday, start_period),
+  CHECK (start_period <= end_period)
+);
+
+CREATE TABLE enrollment (
+  student_id TEXT NOT NULL REFERENCES student(student_id),
+  course_id  TEXT NOT NULL REFERENCES course(course_id),
+  score      INTEGER CHECK (score BETWEEN 0 AND 100),
+  PRIMARY KEY (student_id, course_id)
+);
+
+INSERT INTO department VALUES
+ ('CS','資訊工程學系','工程一館'),
+ ('EE','電機工程學系','工程二館'),
+ ('IM','資訊管理學系','管理大樓'),
+ ('GE','通識教育中心','綜合大樓');
+
+INSERT INTO teacher VALUES
+ ('T01','林志明','CS','教授'),
+ ('T02','陳雅婷','CS','副教授'),
+ ('T03','王建國','EE','教授'),
+ ('T04','張淑芬','IM','助理教授'),
+ ('T05','李宗翰','GE','講師'),
+ ('T06','黃美玲','IM','副教授');
+
+INSERT INTO student VALUES
+ ('B112001','劉建宏','CS',3),
+ ('B112002','蔡宜蓁','EE',3),
+ ('B113001','王小明','CS',2),
+ ('B113002','李佳穎','CS',2),
+ ('B113003','張家豪','EE',2),
+ ('B113004','陳怡君','IM',2),
+ ('B113005','鄭宇翔','CS',2),
+ ('B114001','林冠宇','CS',1),
+ ('B114002','黃詩涵','EE',1),
+ ('B114003','吳承恩','IM',1);
+
+INSERT INTO course VALUES
+ ('C101','資料庫系統',3,'必修','CS','T01'),
+ ('C102','資料結構',3,'必修','CS','T02'),
+ ('C103','計算機組織',3,'必修','CS','T02'),
+ ('C104','人工智慧導論',2,'選修','CS','T02'),
+ ('E201','電路學',3,'必修','EE','T03'),
+ ('E202','數位邏輯',3,'選修','EE','T03'),
+ ('M301','系統分析與設計',3,'必修','IM','T04'),
+ ('M302','網頁程式設計',2,'選修','IM','T04'),
+ ('G401','英文閱讀與寫作',2,'通識','GE','T05'),
+ ('G402','生活中的統計',2,'通識','GE','T05');
+
+INSERT INTO course_time VALUES
+ ('C101',1,2,4,'EC101'),
+ ('C102',2,2,3,'EC102'),
+ ('C102',4,2,2,'EC102'),
+ ('C103',3,5,7,'EC201'),
+ ('C104',5,3,4,'EC103'),
+ ('E201',2,6,8,'ED201'),
+ ('E202',1,3,4,'ED105'),
+ ('M301',3,2,4,'MB301'),
+ ('M302',4,6,7,'MB204'),
+ ('G401',2,2,3,'GA110'),
+ ('G402',5,6,7,'GA201');
+
+INSERT INTO enrollment VALUES
+ ('B113001','C101',88),
+ ('B113001','C102',76),
+ ('B113001','E202',82),
+ ('B113001','G402',NULL),
+ ('B113002','C101',93),
+ ('B113002','C102',85),
+ ('B113002','C103',NULL),
+ ('B113002','G401',90),
+ ('B113003','E201',71),
+ ('B113003','E202',64),
+ ('B113003','C101',NULL),
+ ('B113004','M301',87),
+ ('B113004','M302',92),
+ ('B113004','C101',79),
+ ('B114001','C102',58),
+ ('B114001','G402',74),
+ ('B114002','E201',66),
+ ('B114002','G402',80),
+ ('B114003','M302',95),
+ ('B114003','G401',83),
+ ('B112001','C103',81),
+ ('B112001','M301',NULL),
+ ('B112002','E201',90),
+ ('B112002','E202',NULL),
+ ('B112002','G402',68);
+`;
+
+  var TABLES = [
+    {
+      name: 'department', zh: '系所',
+      purpose: '每個開課或收學生的單位一列。系名只存在這裡，系所改名時只要改一列。',
+      columns: [
+        { name: 'dept_id', type: 'TEXT', key: 'PK', desc: '系所代碼，例如 CS、EE' },
+        { name: 'dept_name', type: 'TEXT', key: '', desc: '系所全名，不可重複' },
+        { name: 'building', type: 'TEXT', key: '', desc: '系辦所在大樓' }
+      ]
+    },
+    {
+      name: 'teacher', zh: '教師',
+      purpose: '每位授課教師一列，記錄他隸屬哪個系所。',
+      columns: [
+        { name: 'teacher_id', type: 'TEXT', key: 'PK', desc: '教師編號' },
+        { name: 'name', type: 'TEXT', key: '', desc: '姓名' },
+        { name: 'dept_id', type: 'TEXT', key: 'FK', ref: 'department.dept_id', desc: '隸屬系所' },
+        { name: 'title', type: 'TEXT', key: '', desc: '職稱：教授、副教授、助理教授、講師' }
+      ]
+    },
+    {
+      name: 'student', zh: '學生',
+      purpose: '每位學生一列。學號開頭的 B 加上入學學年度，例如 B113 是 113 學年入學。',
+      columns: [
+        { name: 'student_id', type: 'TEXT', key: 'PK', desc: '學號' },
+        { name: 'name', type: 'TEXT', key: '', desc: '姓名' },
+        { name: 'dept_id', type: 'TEXT', key: 'FK', ref: 'department.dept_id', desc: '主修系所' },
+        { name: 'grade', type: 'INTEGER', key: '', desc: '年級，限 1–4' }
+      ]
+    },
+    {
+      name: 'course', zh: '課程',
+      purpose: '本學期開出的每門課一列：幾學分、哪個系開、誰教。',
+      columns: [
+        { name: 'course_id', type: 'TEXT', key: 'PK', desc: '課號' },
+        { name: 'course_name', type: 'TEXT', key: '', desc: '課名' },
+        { name: 'credits', type: 'INTEGER', key: '', desc: '學分數，限 1–4' },
+        { name: 'course_type', type: 'TEXT', key: '', desc: '必修／選修／通識' },
+        { name: 'dept_id', type: 'TEXT', key: 'FK', ref: 'department.dept_id', desc: '開課系所' },
+        { name: 'teacher_id', type: 'TEXT', key: 'FK', ref: 'teacher.teacher_id', desc: '授課教師' }
+      ]
+    },
+    {
+      name: 'course_time', zh: '上課時段',
+      purpose: '一門課每週的每一段上課時間一列。資料結構一週上兩次，所以有兩列。',
+      columns: [
+        { name: 'course_id', type: 'TEXT', key: 'PK, FK', ref: 'course.course_id', desc: '哪一門課' },
+        { name: 'weekday', type: 'INTEGER', key: 'PK', desc: '星期幾，1＝週一 … 5＝週五' },
+        { name: 'start_period', type: 'INTEGER', key: 'PK', desc: '開始節次' },
+        { name: 'end_period', type: 'INTEGER', key: '', desc: '結束節次，不可小於開始節次' },
+        { name: 'room', type: 'TEXT', key: '', desc: '教室代號' }
+      ]
+    },
+    {
+      name: 'enrollment', zh: '選課紀錄',
+      purpose: '「某位學生選了某門課」一列。學生和課程是多對多，靠這張表連起來。',
+      columns: [
+        { name: 'student_id', type: 'TEXT', key: 'PK, FK', ref: 'student.student_id', desc: '選課學生' },
+        { name: 'course_id', type: 'TEXT', key: 'PK, FK', ref: 'course.course_id', desc: '選的課' },
+        { name: 'score', type: 'INTEGER', key: '', desc: '學期成績 0–100；NULL 代表老師還沒登分' }
+      ]
+    }
+  ];
+
+  var QUERIES = [
+    {
+      id: 'q1', topic: '篩選', title: '列出所有二年級學生',
+      who: '系辦要寄二年級導生會議通知，需要名單。',
+      tables: ['student'],
+      sql:
+`SELECT student_id AS 學號, name AS 姓名,
+       dept_id AS 系所, grade AS 年級
+FROM student
+WHERE grade = 2
+ORDER BY student_id;`,
+      steps: [
+        'FROM student：先決定資料從學生表來，共 10 列。',
+        'WHERE grade = 2：逐列檢查年級，只留下等於 2 的列，剩 5 列。',
+        'SELECT … AS …：只挑出要顯示的四個欄位，並改成中文欄名。',
+        'ORDER BY student_id：依學號排序。沒寫 ORDER BY 時，資料庫不保證每次順序一樣。'
+      ],
+      variants: [
+        {
+          label: '把 = 改成 >=',
+          sql:
+`SELECT student_id AS 學號, name AS 姓名,
+       dept_id AS 系所, grade AS 年級
+FROM student
+WHERE grade >= 2
+ORDER BY student_id;`,
+          change: 'WHERE grade = 2 改成 WHERE grade >= 2。',
+          effect: '從 5 列變成 7 列，多了三年級的劉建宏和蔡宜蓁，而且排在最前面。',
+          why: '>= 是「大於或等於」，三年級的 3 也符合條件。兩人的學號 B112 開頭比 B113 小，所以排序後在前面。'
+        }
+      ]
+    },
+    {
+      id: 'q2', topic: '篩選', title: '資工系或電機系的二年級學生',
+      who: '工學院要統計院內兩個系的二年級人數。',
+      tables: ['student'],
+      sql:
+`SELECT student_id AS 學號, name AS 姓名,
+       dept_id AS 系所, grade AS 年級
+FROM student
+WHERE (dept_id = 'CS' OR dept_id = 'EE')
+  AND grade = 2
+ORDER BY student_id;`,
+      steps: [
+        '條件要表達的是「系所是 CS 或 EE」而且「年級是 2」。',
+        '括號先算：(dept_id = \'CS\' OR dept_id = \'EE\') 留下兩系共 8 人。',
+        '再套 AND grade = 2：8 人中只剩二年級的 4 人。'
+      ],
+      variants: [
+        {
+          label: '拿掉括號',
+          sql:
+`SELECT student_id AS 學號, name AS 姓名,
+       dept_id AS 系所, grade AS 年級
+FROM student
+WHERE dept_id = 'CS' OR dept_id = 'EE'
+  AND grade = 2
+ORDER BY student_id;`,
+          change: '把 (dept_id = \'CS\' OR dept_id = \'EE\') 外面的括號拿掉。',
+          effect: '從 4 列變成 6 列：資工系三年級的劉建宏、一年級的林冠宇也跑出來了。',
+          why: 'SQL 裡 AND 比 OR 先算，就像乘法比加法先算。沒有括號時，資料庫讀成 dept_id = \'CS\' OR (dept_id = \'EE\' AND grade = 2)，意思變成「資工系所有年級」加上「電機系二年級」。'
+        },
+        {
+          label: '改用 IN',
+          sql:
+`SELECT student_id AS 學號, name AS 姓名,
+       dept_id AS 系所, grade AS 年級
+FROM student
+WHERE dept_id IN ('CS', 'EE')
+  AND grade = 2
+ORDER BY student_id;`,
+          change: '用 dept_id IN (\'CS\', \'EE\') 取代兩個 OR。',
+          effect: '結果完全一樣，還是 4 列。',
+          why: 'IN 本身就是「等於清單裡任一個」，是一個完整的條件，不會和 AND 搶優先順序，所以不用加括號。寫法不同但意思相同，結果也就相同。'
+        }
+      ]
+    },
+    {
+      id: 'q3', topic: '連結', title: '資工系學生各選了哪些課',
+      who: '資工系辦在加退選後確認每位學生的選課狀況。',
+      tables: ['student', 'enrollment', 'course'],
+      sql:
+`SELECT s.student_id AS 學號, s.name AS 姓名,
+       c.course_name AS 課程, c.credits AS 學分
+FROM student AS s
+JOIN enrollment AS e ON e.student_id = s.student_id
+JOIN course AS c ON c.course_id = e.course_id
+WHERE s.dept_id = 'CS'
+ORDER BY s.student_id, c.course_id;`,
+      steps: [
+        'enrollment 是學生和課程中間的橋，一列代表「某學生選了某門課」。',
+        '第一個 JOIN 用學號把 student 接上 enrollment：王小明會接到 4 列選課紀錄。',
+        '第二個 JOIN 用課號把 enrollment 接上 course，把 C101 換成「資料庫系統」和它的學分。',
+        'JOIN（也就是 INNER JOIN）只保留兩邊都配得上的列。鄭宇翔沒有選課紀錄，所以不會出現。'
+      ],
+      variants: [
+        {
+          label: '兩個 JOIN 都改 LEFT JOIN',
+          sql:
+`SELECT s.student_id AS 學號, s.name AS 姓名,
+       c.course_name AS 課程, c.credits AS 學分
+FROM student AS s
+LEFT JOIN enrollment AS e ON e.student_id = s.student_id
+LEFT JOIN course AS c ON c.course_id = e.course_id
+WHERE s.dept_id = 'CS'
+ORDER BY s.student_id, c.course_id;`,
+          change: '兩個 JOIN 都改成 LEFT JOIN。',
+          effect: '從 12 列變成 13 列，多了一列鄭宇翔，課程和學分是 NULL。',
+          why: 'LEFT JOIN 會保留左邊表的每一列。鄭宇翔在 enrollment 找不到配對，資料庫仍保留他，右邊欄位用 NULL 補上。這樣系辦才看得到「還沒選課的人」。'
+        },
+        {
+          label: '只改第一個',
+          sql:
+`SELECT s.student_id AS 學號, s.name AS 姓名,
+       c.course_name AS 課程, c.credits AS 學分
+FROM student AS s
+LEFT JOIN enrollment AS e ON e.student_id = s.student_id
+JOIN course AS c ON c.course_id = e.course_id
+WHERE s.dept_id = 'CS'
+ORDER BY s.student_id, c.course_id;`,
+          change: '只有第一個改成 LEFT JOIN，第二個還是 JOIN。',
+          effect: '結果和原本一樣是 12 列，鄭宇翔還是沒出現。',
+          why: '第一步確實保留了鄭宇翔，但他那列的 e.course_id 是 NULL。第二個 JOIN 要求 c.course_id = NULL，NULL 和任何值比較都不成立，所以這列又被丟掉。要保留到最後，後面每個 JOIN 都得是 LEFT JOIN。'
+        }
+      ]
+    },
+    {
+      id: 'q4', topic: '彙總', title: '每位老師本學期開幾門課',
+      who: '系主任排下學期課務，要看每位老師目前的開課數，沒開課的也要列出來。',
+      tables: ['teacher', 'course'],
+      sql:
+`SELECT t.teacher_id AS 教師編號, t.name AS 教師,
+       t.title AS 職稱,
+       COUNT(c.course_id) AS 開課數
+FROM teacher AS t
+LEFT JOIN course AS c ON c.teacher_id = t.teacher_id
+GROUP BY t.teacher_id, t.name, t.title
+ORDER BY 開課數 DESC, t.teacher_id;`,
+      steps: [
+        'LEFT JOIN 讓每位老師都留下來。黃美玲本學期沒開課，她那列的課程欄位會是 NULL。',
+        'GROUP BY 把同一位老師的列收成一組，例如陳雅婷有 C102、C103、C104 三列，收成一組。',
+        'COUNT(c.course_id) 只數「不是 NULL 的課號」，所以陳雅婷是 3，黃美玲是 0。'
+      ],
+      variants: [
+        {
+          label: 'COUNT(*)',
+          sql:
+`SELECT t.teacher_id AS 教師編號, t.name AS 教師,
+       t.title AS 職稱,
+       COUNT(*) AS 開課數
+FROM teacher AS t
+LEFT JOIN course AS c ON c.teacher_id = t.teacher_id
+GROUP BY t.teacher_id, t.name, t.title
+ORDER BY 開課數 DESC, t.teacher_id;`,
+          change: 'COUNT(c.course_id) 改成 COUNT(*)。',
+          effect: '黃美玲從 0 門變成 1 門，其他人不變。',
+          why: 'LEFT JOIN 幫黃美玲補了一列「課程全是 NULL」的資料。COUNT(*) 數的是列數，這一列也算進去；COUNT(c.course_id) 數的是有值的課號，NULL 不算。所以要數「有幾門課」時，應該數課號。'
+        },
+        {
+          label: '改成 JOIN',
+          sql:
+`SELECT t.teacher_id AS 教師編號, t.name AS 教師,
+       t.title AS 職稱,
+       COUNT(c.course_id) AS 開課數
+FROM teacher AS t
+JOIN course AS c ON c.teacher_id = t.teacher_id
+GROUP BY t.teacher_id, t.name, t.title
+ORDER BY 開課數 DESC, t.teacher_id;`,
+          change: 'LEFT JOIN 改成 JOIN。',
+          effect: '從 6 列變成 5 列，黃美玲整列消失。',
+          why: 'JOIN 只留兩邊都配得上的列。黃美玲在 course 找不到自己的教師編號，連分組的機會都沒有，所以不會出現「0 門」，而是直接不見。題目要求「沒開課的也要列出」，因此要用 LEFT JOIN。'
+        }
+      ]
+    },
+    {
+      id: 'q5', topic: '彙總', title: '每門課的修課人數與平均成績',
+      who: '教務處在期末檢查各課的成績登錄進度。',
+      tables: ['course', 'enrollment'],
+      sql:
+`SELECT c.course_id AS 課號, c.course_name AS 課程,
+       COUNT(e.student_id) AS 修課人數,
+       COUNT(e.score) AS 已登分,
+       ROUND(AVG(e.score), 1) AS 平均成績
+FROM course AS c
+LEFT JOIN enrollment AS e ON e.course_id = c.course_id
+GROUP BY c.course_id, c.course_name
+ORDER BY c.course_id;`,
+      steps: [
+        'score 是 NULL 表示老師還沒登分，不是考 0 分。',
+        '以 C101 為例：4 位學生，成績是 88、93、NULL、79。',
+        'COUNT(e.student_id) = 4，COUNT(e.score) = 3，因為 COUNT(欄位) 會跳過 NULL。',
+        'AVG 也跳過 NULL：(88 + 93 + 79) ÷ 3 = 86.67，ROUND 到小數一位是 86.7。',
+        'C104 沒人選，LEFT JOIN 仍保留它，人數 0、平均是 NULL。'
+      ],
+      variants: [
+        {
+          label: '把 NULL 當 0',
+          sql:
+`SELECT c.course_id AS 課號, c.course_name AS 課程,
+       COUNT(e.student_id) AS 修課人數,
+       COUNT(e.score) AS 已登分,
+       ROUND(AVG(COALESCE(e.score, 0)), 1) AS 平均成績
+FROM course AS c
+LEFT JOIN enrollment AS e ON e.course_id = c.course_id
+GROUP BY c.course_id, c.course_name
+ORDER BY c.course_id;`,
+          change: 'AVG(e.score) 改成 AVG(COALESCE(e.score, 0))。',
+          effect: '有未登分學生的課，平均都下降。C101 從 86.7 掉到 65.0；沒人選的 C104 從 NULL 變成 0.0。',
+          why: 'COALESCE(e.score, 0) 會把 NULL 換成 0，於是 AVG 不再跳過它。C101 變成 (88 + 93 + 0 + 79) ÷ 4 = 65.0。這等於把「還沒登分」當成「考 0 分」，平均就失真了。'
+        }
+      ]
+    },
+    {
+      id: 'q6', topic: '彙總', title: '本學期選了 8 學分以上的學生',
+      who: '註冊組要找出已選滿 8 學分（含）的學生。',
+      tables: ['student', 'enrollment', 'course'],
+      sql:
+`SELECT s.student_id AS 學號, s.name AS 姓名,
+       SUM(c.credits) AS 總學分,
+       COUNT(*) AS 課程數
+FROM student AS s
+JOIN enrollment AS e ON e.student_id = s.student_id
+JOIN course AS c ON c.course_id = e.course_id
+GROUP BY s.student_id, s.name
+HAVING SUM(c.credits) >= 8
+ORDER BY 總學分 DESC, s.student_id;`,
+      steps: [
+        '先 JOIN 出每一筆「學生＋課程＋學分」。',
+        'GROUP BY 學生，SUM 加總學分。王小明：3 + 3 + 3 + 2 = 11。',
+        'HAVING 在分組「之後」才篩選，只留總學分 ≥ 8 的組。',
+        '執行順序可以記成：FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY。'
+      ],
+      variants: [
+        {
+          label: '把條件寫進 WHERE',
+          sql:
+`SELECT s.student_id AS 學號, s.name AS 姓名,
+       SUM(c.credits) AS 總學分,
+       COUNT(*) AS 課程數
+FROM student AS s
+JOIN enrollment AS e ON e.student_id = s.student_id
+JOIN course AS c ON c.course_id = e.course_id
+WHERE SUM(c.credits) >= 8
+GROUP BY s.student_id, s.name
+ORDER BY 總學分 DESC, s.student_id;`,
+          change: '把 HAVING SUM(c.credits) >= 8 移到 WHERE。',
+          effect: '沒有結果，SQLite 回傳錯誤 misuse of aggregate: SUM()。',
+          why: 'WHERE 是在分組之前一列一列檢查，那時每列只有單一門課的學分，還沒有「總學分」可以比。加總後的條件只能放在 HAVING。'
+        },
+        {
+          label: 'WHERE 先濾掉 2 學分課',
+          sql:
+`SELECT s.student_id AS 學號, s.name AS 姓名,
+       SUM(c.credits) AS 總學分,
+       COUNT(*) AS 課程數
+FROM student AS s
+JOIN enrollment AS e ON e.student_id = s.student_id
+JOIN course AS c ON c.course_id = e.course_id
+WHERE c.credits >= 3
+GROUP BY s.student_id, s.name
+HAVING SUM(c.credits) >= 8
+ORDER BY 總學分 DESC, s.student_id;`,
+          change: '加上 WHERE c.credits >= 3。',
+          effect: '從 5 人剩 3 人。王小明、李佳穎的總學分從 11 變 9；陳怡君、蔡宜蓁掉到 6 學分，被 HAVING 刷掉。',
+          why: 'WHERE 在加總之前就把 2 學分的課拿掉了，加總時少算這些課，總學分跟著變少。這說明 WHERE 改變的是「拿去加總的資料」，HAVING 改變的是「加總後留下哪些組」。'
+        }
+      ]
+    },
+    {
+      id: 'q7', topic: '子查詢', title: '成績高於該課平均的學生',
+      who: '老師想表揚表現比同班平均好的學生。',
+      tables: ['enrollment', 'student', 'course'],
+      sql:
+`SELECT c.course_name AS 課程, s.name AS 姓名,
+       e.score AS 成績
+FROM enrollment AS e
+JOIN student AS s ON s.student_id = e.student_id
+JOIN course AS c ON c.course_id = e.course_id
+WHERE e.score > (
+  SELECT AVG(e2.score)
+  FROM enrollment AS e2
+  WHERE e2.course_id = e.course_id
+)
+ORDER BY c.course_id, e.score DESC;`,
+      steps: [
+        '括號裡是子查詢。它用到外面的 e.course_id，所以每檢查一列，就照那一列的課號重算一次平均（相關子查詢）。',
+        '檢查王小明的 C101 時，子查詢算 C101 的平均 86.67；88 > 86.67，留下。',
+        '檢查陳怡君的 C101 時，79 < 86.67，不留。',
+        '成績是 NULL 的列，NULL > 任何數都不成立，自然不會出現。'
+      ],
+      variants: [
+        {
+          label: '拿掉子查詢的 WHERE',
+          sql:
+`SELECT c.course_name AS 課程, s.name AS 姓名,
+       e.score AS 成績
+FROM enrollment AS e
+JOIN student AS s ON s.student_id = e.student_id
+JOIN course AS c ON c.course_id = e.course_id
+WHERE e.score > (
+  SELECT AVG(e2.score)
+  FROM enrollment AS e2
+)
+ORDER BY c.course_id, e.score DESC;`,
+          change: '刪掉子查詢裡的 WHERE e2.course_id = e.course_id。',
+          effect: '從 9 列變成 11 列。多了 4 列：劉建宏 81、吳承恩英文 83、陳怡君 87 和 92；少了 2 列：王小明資料結構 76、黃詩涵 80。',
+          why: '少了這個條件，子查詢不再看外面是哪門課，每次都算出同一個數字：全部已登分成績的平均 80.1。原本是「跟同班比」，現在變成「跟全校比」。資料結構班平均只有 73，王小明的 76 原本贏同班，卻輸給 80.1；系統分析與設計只有陳怡君一人有成績，她的 87 等於班平均、原本不算「高於」，現在高於 80.1 就入選了。'
+        }
+      ]
+    },
+    {
+      id: 'q8', topic: '連結', title: '找出衝堂的選課',
+      who: '選課系統在加退選截止前，提醒選到衝堂課的學生。',
+      tables: ['enrollment', 'course_time', 'student', 'course'],
+      sql:
+`SELECT s.name AS 姓名,
+       c1.course_name AS 課程A, c2.course_name AS 課程B,
+       t1.weekday AS 星期,
+       MAX(t1.start_period, t2.start_period) AS 重疊起節,
+       MIN(t1.end_period, t2.end_period) AS 重疊迄節
+FROM enrollment AS e1
+JOIN enrollment AS e2
+  ON e2.student_id = e1.student_id
+ AND e1.course_id < e2.course_id
+JOIN course_time AS t1 ON t1.course_id = e1.course_id
+JOIN course_time AS t2 ON t2.course_id = e2.course_id
+JOIN student AS s ON s.student_id = e1.student_id
+JOIN course AS c1 ON c1.course_id = e1.course_id
+JOIN course AS c2 ON c2.course_id = e2.course_id
+WHERE t1.weekday = t2.weekday
+  AND t1.start_period <= t2.end_period
+  AND t2.start_period <= t1.end_period
+ORDER BY s.student_id, t1.weekday;`,
+      steps: [
+        'enrollment 和自己 JOIN（自我連結），把同一位學生的兩門課配成一對。',
+        'e1.course_id < e2.course_id 讓每對課只出現一次，也排除「自己配自己」。',
+        '再各自接上 course_time，比較兩門課的上課時段。',
+        '兩段時間重疊的條件：A 開始 ≤ B 結束，而且 B 開始 ≤ A 結束。',
+        '代數字：資料庫系統週一第 2–4 節，數位邏輯週一第 3–4 節。2 ≤ 4 成立、3 ≤ 4 成立，所以重疊，重疊範圍是第 3–4 節。'
+      ],
+      variants: [
+        {
+          label: '< 改成 <>',
+          sql:
+`SELECT s.name AS 姓名,
+       c1.course_name AS 課程A, c2.course_name AS 課程B,
+       t1.weekday AS 星期,
+       MAX(t1.start_period, t2.start_period) AS 重疊起節,
+       MIN(t1.end_period, t2.end_period) AS 重疊迄節
+FROM enrollment AS e1
+JOIN enrollment AS e2
+  ON e2.student_id = e1.student_id
+ AND e1.course_id <> e2.course_id
+JOIN course_time AS t1 ON t1.course_id = e1.course_id
+JOIN course_time AS t2 ON t2.course_id = e2.course_id
+JOIN student AS s ON s.student_id = e1.student_id
+JOIN course AS c1 ON c1.course_id = e1.course_id
+JOIN course AS c2 ON c2.course_id = e2.course_id
+WHERE t1.weekday = t2.weekday
+  AND t1.start_period <= t2.end_period
+  AND t2.start_period <= t1.end_period
+ORDER BY s.student_id, t1.weekday;`,
+          change: 'e1.course_id < e2.course_id 改成 e1.course_id <> e2.course_id。',
+          effect: '從 3 列變成 6 列，每個衝堂都出現兩次，課程A 和課程B 對調。',
+          why: '<> 只排除「同一門課」，(資料庫系統, 數位邏輯) 和 (數位邏輯, 資料庫系統) 兩種順序都成立。用 < 時只有課號小的放前面那一種成立，所以每對只算一次。'
+        },
+        {
+          label: '拿掉 < 條件',
+          sql:
+`SELECT s.name AS 姓名,
+       c1.course_name AS 課程A, c2.course_name AS 課程B,
+       t1.weekday AS 星期,
+       MAX(t1.start_period, t2.start_period) AS 重疊起節,
+       MIN(t1.end_period, t2.end_period) AS 重疊迄節
+FROM enrollment AS e1
+JOIN enrollment AS e2
+  ON e2.student_id = e1.student_id
+JOIN course_time AS t1 ON t1.course_id = e1.course_id
+JOIN course_time AS t2 ON t2.course_id = e2.course_id
+JOIN student AS s ON s.student_id = e1.student_id
+JOIN course AS c1 ON c1.course_id = e1.course_id
+JOIN course AS c2 ON c2.course_id = e2.course_id
+WHERE t1.weekday = t2.weekday
+  AND t1.start_period <= t2.end_period
+  AND t2.start_period <= t1.end_period
+ORDER BY s.student_id, t1.weekday;`,
+          change: '把 AND e1.course_id < e2.course_id 整個刪掉。',
+          effect: '從 3 列暴增到 34 列，每位學生的每段課都「和自己衝堂」，原本的衝堂也各出現兩次。',
+          why: '同一門課配自己時，時段完全相同，重疊條件一定成立。這就是為什麼自我連結時一定要排除「同一列配同一列」。'
+        }
+      ]
+    },
+    {
+      id: 'q9', topic: '連結', title: '王小明的本週課表',
+      who: '學生打開「個人課表」頁面時，系統背後執行的查詢。',
+      tables: ['enrollment', 'course', 'course_time'],
+      sql:
+`SELECT CASE t.weekday
+         WHEN 1 THEN '一' WHEN 2 THEN '二' WHEN 3 THEN '三'
+         WHEN 4 THEN '四' WHEN 5 THEN '五'
+       END AS 星期,
+       t.start_period || '–' || t.end_period AS 節次,
+       c.course_name AS 課程, t.room AS 教室
+FROM enrollment AS e
+JOIN course AS c ON c.course_id = e.course_id
+JOIN course_time AS t ON t.course_id = c.course_id
+WHERE e.student_id = 'B113001'
+ORDER BY t.weekday, t.start_period;`,
+      steps: [
+        '從王小明（B113001）的 4 筆選課紀錄出發。',
+        '接 course 拿課名，接 course_time 拿每段上課時間。資料結構有兩段，所以會變成兩列。',
+        'CASE 把 1–5 換成「一」到「五」，|| 把開始和結束節次接成「2–4」這種字串。',
+        '依星期、節次排序，就是一張從週一排到週五的課表。'
+      ],
+      variants: [
+        {
+          label: '忘了寫連接條件',
+          sql:
+`SELECT CASE t.weekday
+         WHEN 1 THEN '一' WHEN 2 THEN '二' WHEN 3 THEN '三'
+         WHEN 4 THEN '四' WHEN 5 THEN '五'
+       END AS 星期,
+       t.start_period || '–' || t.end_period AS 節次,
+       c.course_name AS 課程, t.room AS 教室
+FROM enrollment AS e
+JOIN course AS c ON c.course_id = e.course_id,
+     course_time AS t
+WHERE e.student_id = 'B113001'
+ORDER BY t.weekday, t.start_period;`,
+          change: 'JOIN course_time … ON … 改成只用逗號列出 course_time，沒有連接條件。',
+          effect: '從 5 列暴增到 44 列，課名和時段亂配，例如資料庫系統被排到週三。',
+          why: '沒有 ON 條件時，資料庫把王小明的 4 門課和 course_time 全部 11 個時段每個都配一次：4 × 11 = 44，這叫笛卡兒積。連接條件的作用就是只留「時段真的屬於這門課」的配對。'
+        }
+      ]
+    }
+  ];
+
+  return { SEED_SQL: SEED_SQL, TABLES: TABLES, QUERIES: QUERIES };
+})();
+if (typeof module !== 'undefined') module.exports = APP_DATA;
+
+</script>
+<script>
+(function () {
+  var D = APP_DATA;
+  var SQL = null;
+  var state = { q: D.QUERIES[0], variant: 0, table: 'student', expected: null };
+
+  function $(s) { return document.querySelector(s); }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function qById(id) { for (var i = 0; i < D.QUERIES.length; i++) if (D.QUERIES[i].id === id) return D.QUERIES[i]; return null; }
+  function qNum(q) { return 'Q' + (D.QUERIES.indexOf(q) + 1); }
+
+  /* ---------- SQL ---------- */
+  function run(sql) {
+    var db = new SQL.Database();
+    db.exec(D.SEED_SQL);
+    var last = null, n = 0, modified = 0;
+    try {
+      var it = db.iterateStatements(sql);
+      for (var stmt of it) {
+        n++;
+        var cols = stmt.getColumnNames();
+        var vals = [], cap = false;
+        while (stmt.step()) {
+          if (vals.length >= 2000) { cap = true; break; }
+          vals.push(stmt.get());
+        }
+        stmt.free();
+        if (cols.length) last = { columns: cols, values: vals, capped: cap };
+        else modified = db.getRowsModified();
+      }
+      if (n === 0) return { error: '沒有可執行的陳述式。編輯器是空的，或只有註解。', raw: '' };
+      if (!last) return { columns: [], values: [], noRows: true, statements: n, modified: modified };
+      last.statements = n;
+      return last;
+    } catch (e) {
+      return { error: explainError(e.message), raw: e.message };
+    } finally {
+      db.close();
+    }
+  }
+
+  function explainError(m) {
+    if (/misuse of aggregate/i.test(m)) return 'SUM、COUNT、AVG 這類聚合函數不能放在 WHERE，因為 WHERE 在分組之前執行。加總後的條件請寫在 HAVING。';
+    if (/no such column/i.test(m)) return '找不到這個欄位。檢查欄位名稱拼字，以及前面的別名（例如 s.、e.）是否對應到正確的表。';
+    if (/no such table/i.test(m)) return '找不到這張表。這個資料庫只有 department、teacher、student、course、course_time、enrollment。';
+    if (/ambiguous column/i.test(m)) return '這個欄位名稱同時出現在多張表裡，請在前面加上表的別名，例如 s.dept_id。';
+    if (/syntax error/i.test(m)) return 'SQL 語法有誤。常見原因：少了逗號、多了逗號、括號沒配對，或關鍵字順序錯（要依序 SELECT → FROM → WHERE → GROUP BY → HAVING → ORDER BY）。';
+    if (/incomplete input/i.test(m)) return 'SQL 還沒寫完，可能少了右括號或引號。';
+    if (/CHECK constraint/i.test(m)) return '寫入的值違反 CHECK 限制，例如年級不在 1–4，或成績不在 0–100。';
+    if (/UNIQUE constraint|PRIMARY KEY/i.test(m)) return '主鍵或唯一值重複了，同一個值不能出現兩次。';
+    if (/FOREIGN KEY/i.test(m)) return '外來鍵找不到對應的資料，例如 dept_id 寫了不存在的系所。';
+    return '';
+  }
+
+  /* ---------- comparison ---------- */
+  function keyOf(row) { return JSON.stringify(row); }
+  function diffRows(a, b) {
+    // rows of b not matched in a, rows of a not matched in b (multiset)
+    function unmatched(src, ref) {
+      var bag = new Map();
+      ref.forEach(function (r) { var k = keyOf(r); bag.set(k, (bag.get(k) || 0) + 1); });
+      var out = [];
+      src.forEach(function (r, i) {
+        var k = keyOf(r), c = bag.get(k) || 0;
+        if (c > 0) bag.set(k, c - 1); else out.push(i);
+      });
+      return out;
+    }
+    return { extraInB: unmatched(b.values, a.values), missingInB: unmatched(a.values, b.values) };
+  }
+  function sameCols(a, b) { return a.columns.length === b.columns.length && a.columns.every(function (c, i) { return c === b.columns[i]; }); }
+
+  /* ---------- rendering helpers ---------- */
+  function isNum(v) { return typeof v === 'number'; }
+  function fmt(v) {
+    if (v === null || v === undefined) return '<span class="null">NULL</span>';
+    if (typeof v === 'number' && !Number.isInteger(v)) return esc(+v.toFixed(4));
+    return esc(v);
+  }
+  function tableHtml(res, opt) {
+    opt = opt || {};
+    var mark = opt.mark || {};
+    var hasMk = !!opt.marks;
+    var h = '<div class="dt-scroll"><table class="dt"><thead><tr>' + (hasMk ? '<th></th>' : '');
+    res.columns.forEach(function (c) { h += '<th>' + esc(c) + '</th>'; });
+    h += '</tr></thead><tbody>';
+    res.values.forEach(function (row, i) {
+      var cls = mark[i] || '';
+      h += '<tr' + (cls ? ' class="' + cls + '"' : '') + '>';
+      if (hasMk) h += '<td class="mk">' + (cls === 'plus' ? '+' : cls === 'minus' ? '−' : '') + '</td>';
+      row.forEach(function (v) {
+        var c = isNum(v) ? 'num' : (typeof v === 'string' && /^[A-Z]{1,2}\d{2,6}$|^[A-Z]{2}$/.test(v) ? 'id' : '');
+        h += '<td' + (c ? ' class="' + c + '"' : '') + '>' + fmt(v) + '</td>';
+      });
+      h += '</tr>';
+    });
+    if (opt.missingRows && opt.missingRows.length) {
+      opt.missingRows.forEach(function (row) {
+        h += '<tr class="minus">' + (hasMk ? '<td class="mk">−</td>' : '');
+        row.forEach(function (v) { h += '<td' + (isNum(v) ? ' class="num"' : '') + '>' + fmt(v) + '</td>'; });
+        h += '</tr>';
+      });
+    }
+    h += '</tbody></table></div>';
+    return h;
+  }
+  function resultBlock(res, opt) {
+    if (res.error !== undefined) {
+      return '<div class="err"><b>執行失敗</b><code>' + esc(res.raw || res.error) + '</code>' + (res.raw && res.error ? '<span>' + esc(res.error) + '</span>' : '') + '</div>';
+    }
+    if (res.noRows) {
+      return '<div class="empty">已執行 ' + res.statements + ' 個陳述式，最後一個不回傳資料' + (res.modified ? '（影響 ' + res.modified + ' 列）' : '') + '。在後面加一句 SELECT 就能看到結果。</div>';
+    }
+    if (!res.values.length && !(opt && opt.missingRows && opt.missingRows.length)) {
+      return '<div class="empty">查詢成功，但沒有任何一列符合條件（0 列）。</div>' + (res.columns.length ? '<div class="diffnote">欄位：' + res.columns.map(esc).join('、') + '</div>' : '');
+    }
+    return tableHtml(res, opt);
+  }
+  function countText(res) {
+    if (!res || res.error !== undefined || res.noRows) return '';
+    return res.values.length + ' 列' + (res.capped ? '（只顯示前 2000 列）' : '');
+  }
+
+  /* SQL highlight for read-only views */
+  var KW = /\b(SELECT|FROM|WHERE|AND|OR|NOT|IN|AS|JOIN|LEFT|INNER|ON|GROUP|BY|HAVING|ORDER|DESC|ASC|COUNT|SUM|AVG|MIN|MAX|ROUND|COALESCE|CASE|WHEN|THEN|END|NULL|IS|DISTINCT|LIMIT|EXISTS|BETWEEN|LIKE)\b/g;
+  function hl(line) {
+    return line.split(/('(?:[^']|'')*')/).map(function (part, i) {
+      if (i % 2 === 1) return '<span class="s">' + esc(part) + '</span>';
+      return esc(part).replace(KW, '<span class="k">$1</span>');
+    }).join('');
+  }
+  function lineDiff(a, b) {
+    var A = a.split('\n'), B = b.split('\n'), n = A.length, m = B.length;
+    var L = [];
+    for (var i = 0; i <= n; i++) { L.push(new Array(m + 1).fill(0)); }
+    for (i = n - 1; i >= 0; i--) for (var j = m - 1; j >= 0; j--)
+      L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    var out = []; i = 0; j = 0;
+    while (i < n && j < m) {
+      if (A[i] === B[j]) { out.push(['', B[j]]); i++; j++; }
+      else if (L[i + 1][j] >= L[i][j + 1]) { out.push(['del', A[i]]); i++; }
+      else { out.push(['add', B[j]]); j++; }
+    }
+    while (i < n) out.push(['del', A[i++]]);
+    while (j < m) out.push(['add', B[j++]]);
+    return out;
+  }
+
+  /* ---------- 1. timetable ---------- */
+  function renderTimetable() {
+    var r = run("SELECT t.weekday, t.start_period, t.end_period, c.course_name, t.room FROM enrollment e JOIN course c ON c.course_id = e.course_id JOIN course_time t ON t.course_id = c.course_id WHERE e.student_id = 'B113001'");
+    if (r.error) return;
+    var grid = {};
+    r.values.forEach(function (v) {
+      for (var p = v[1]; p <= v[2]; p++) {
+        var k = v[0] + '-' + p;
+        (grid[k] = grid[k] || []).push({ name: v[3], room: v[4] });
+      }
+    });
+    var days = ['一', '二', '三', '四', '五'];
+    var h = '<thead><tr><th class="p">節</th>' + days.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '</tr></thead><tbody>';
+    for (var p = 1; p <= 8; p++) {
+      h += '<tr><th class="p" scope="row">' + p + '</th>';
+      for (var d = 1; d <= 5; d++) {
+        var cell = grid[d + '-' + p];
+        if (!cell) { h += '<td></td>'; continue; }
+        var cls = cell.length > 1 ? 'on clash' : 'on';
+        h += '<td class="' + cls + '">' + cell.map(function (c) { return esc(c.name) + '<span class="rm">' + esc(c.room) + '</span>'; }).join('') + '</td>';
+      }
+      h += '</tr>';
+    }
+    $('#timetable').innerHTML = h + '</tbody>';
+  }
+  function renderTimetableSkeleton() {
+    var days = ['一', '二', '三', '四', '五'];
+    var h = '<thead><tr><th class="p">節</th>' + days.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '</tr></thead><tbody>';
+    for (var p = 1; p <= 8; p++) { h += '<tr><th class="p">' + p + '</th>' + '<td></td>'.repeat(5) + '</tr>'; }
+    $('#timetable').innerHTML = h + '</tbody>';
+  }
+
+  /* ---------- 2. ERD ---------- */
+  function renderERD() {
+    var W = 232, HEAD = 36, ROW = 24;
+    var POS = {
+      student: [20, 16], department: [364, 16], teacher: [708, 16],
+      enrollment: [20, 236], course: [364, 236], course_time: [20, 392]
+    };
+    var T = {}; D.TABLES.forEach(function (t) { T[t.name] = t; });
+    function rowY(t, col) {
+      var idx = T[t].columns.findIndex(function (c) { return c.name === col; });
+      return POS[t][1] + HEAD + idx * ROW + ROW / 2;
+    }
+    function side(t, s) { return s === 'L' ? POS[t][0] : POS[t][0] + W; }
+    var s = '<svg viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="選課與課表資料庫 ERD">';
+    s += '<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="e-head"/></marker></defs>';
+    s += '<style>.e{fill:none;stroke:var(--muted);stroke-width:1.4}.e-head{fill:var(--muted)}.bx{fill:var(--surface);stroke:var(--line);stroke-width:1.2}.hd{fill:var(--accent-soft)}.tn{font:600 14px var(--f-mono);fill:var(--ink)}.tz{font:500 12px var(--f-body);fill:var(--muted)}.cn{font:400 12.5px var(--f-mono);fill:var(--ink)}.ty{font:400 11px var(--f-mono);fill:var(--muted)}.pk{fill:var(--accent)}.pkt{font:600 9.5px var(--f-mono);fill:var(--surface)}.fkb{fill:none;stroke:var(--accent)}.fkt{font:600 9.5px var(--f-mono);fill:var(--accent)}.sep{stroke:var(--line)}.card{font:600 12px var(--f-mono);fill:var(--accent)}</style>';
+
+    function curve(x1, y1, x2, y2) {
+      var dir = x2 > x1 ? 1 : -1;
+      var dx = Math.max(40, Math.abs(x2 - x1) / 2) * dir;
+      return 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2;
+    }
+    var edges = [
+      { f: ['student', 'dept_id', 'R'], t: ['department', 'dept_id', 'L'] },
+      { f: ['teacher', 'dept_id', 'L'], t: ['department', 'dept_id', 'R'] },
+      { f: ['enrollment', 'student_id', 'L'], t: ['student', 'student_id', 'L'], bx: 8 },
+      { f: ['enrollment', 'course_id', 'R'], t: ['course', 'course_id', 'L'] },
+      { f: ['course_time', 'course_id', 'R'], t: ['course', 'course_id', 'L'] },
+      { f: ['course', 'dept_id', 'R'], t: ['department', 'dept_id', 'R'], bx: 612 },
+      { f: ['course', 'teacher_id', 'R'], t: ['teacher', 'teacher_id', 'L'] }
+    ];
+    var labels = '';
+    edges.forEach(function (e) {
+      var x1 = side(e.f[0], e.f[2]), y1 = rowY(e.f[0], e.f[1]);
+      var x2 = side(e.t[0], e.t[2]), y2 = rowY(e.t[0], e.t[1]);
+      var d = e.bx !== undefined ? ('M' + x1 + ',' + y1 + ' H' + e.bx + ' V' + y2 + ' H' + x2) : curve(x1, y1, x2, y2);
+      s += '<path class="e" d="' + d + '" marker-end="url(#arr)"/>';
+      var fo = e.f[2] === 'R' ? 7 : -15, to = e.t[2] === 'R' ? 9 : -16;
+      labels += '<text class="card" x="' + (x1 + fo) + '" y="' + (y1 - 5) + '">N</text>';
+      labels += '<text class="card" x="' + (x2 + to) + '" y="' + (y2 - 6) + '">1</text>';
+    });
+    D.TABLES.forEach(function (t) {
+      var x = POS[t.name][0], y = POS[t.name][1], h = HEAD + t.columns.length * ROW + 4;
+      s += '<g><rect class="bx" x="' + x + '" y="' + y + '" width="' + W + '" height="' + h + '" rx="8"/>';
+      s += '<path class="hd" d="M' + (x + 0.6) + ',' + (y + HEAD) + ' V' + (y + 8) + ' Q' + (x + 0.6) + ',' + (y + 0.6) + ' ' + (x + 8) + ',' + (y + 0.6) + ' H' + (x + W - 8) + ' Q' + (x + W - 0.6) + ',' + (y + 0.6) + ' ' + (x + W - 0.6) + ',' + (y + 8) + ' V' + (y + HEAD) + ' Z"/>';
+      s += '<text class="tn" x="' + (x + 12) + '" y="' + (y + 23) + '">' + t.name + '</text>';
+      s += '<text class="tz" x="' + (x + W - 12) + '" y="' + (y + 23) + '" text-anchor="end">' + t.zh + '</text>';
+      t.columns.forEach(function (c, i) {
+        var cy = y + HEAD + i * ROW + ROW / 2;
+        var kx = x + 10;
+        if (/PK/.test(c.key)) { s += '<rect class="pk" x="' + kx + '" y="' + (cy - 7) + '" width="20" height="14" rx="3"/><text class="pkt" x="' + (kx + 10) + '" y="' + (cy + 3.5) + '" text-anchor="middle">PK</text>'; kx += 24; }
+        if (/FK/.test(c.key)) { s += '<rect class="fkb" x="' + (kx + 0.5) + '" y="' + (cy - 6.5) + '" width="19" height="13" rx="3"/><text class="fkt" x="' + (kx + 10) + '" y="' + (cy + 3.5) + '" text-anchor="middle">FK</text>'; kx += 24; }
+        var nx = x + 58;
+        s += '<text class="cn" x="' + nx + '" y="' + (cy + 4) + '">' + c.name + '</text>';
+        s += '<text class="ty" x="' + (x + W - 12) + '" y="' + (cy + 4) + '" text-anchor="end">' + c.type + '</text>';
+      });
+      s += '</g>';
+    });
+    s += labels + '</svg>';
+    $('#erd').innerHTML = s;
+  }
+
+  /* ---------- 2. table browser ---------- */
+  function renderTableTabs() {
+    var h = '';
+    D.TABLES.forEach(function (t) {
+      h += '<button class="tab" role="tab" type="button" data-t="' + t.name + '" aria-selected="' + (t.name === state.table) + '"><span class="mono">' + t.name + '</span><small>' + t.zh + '</small></button>';
+    });
+    $('#tbl-tabs').innerHTML = h;
+  }
+  function renderTableDetail() {
+    var t = D.TABLES.filter(function (x) { return x.name === state.table; })[0];
+    var spec = '<div class="panel"><h3><span class="mono">' + t.name + '</span>　' + t.zh + '</h3><p class="purpose">' + esc(t.purpose) + '</p>';
+    spec += '<div class="dt-scroll"><table class="dt"><thead><tr><th>欄位</th><th>型別</th><th>鍵</th><th>說明</th></tr></thead><tbody>';
+    t.columns.forEach(function (c) {
+      var keys = (c.key ? c.key.split(', ') : []).map(function (k) { return '<span class="key ' + k.toLowerCase() + '">' + k + '</span>'; }).join(' ');
+      spec += '<tr><td class="id">' + c.name + '</td><td class="id">' + c.type + '</td><td>' + keys + '</td><td class="wrap">' + esc(c.desc) + (c.ref ? '<br><span class="null">→ ' + c.ref + '</span>' : '') + '</td></tr>';
+    });
+    spec += '</tbody></table></div></div>';
+    var data = '<div class="panel"><h3>樣本資料</h3>';
+    if (SQL) {
+      var r = run('SELECT * FROM ' + t.name + ';');
+      data += '<p class="purpose">共 ' + r.values.length + ' 列　<code>SELECT * FROM ' + t.name + ';</code></p>' + tableHtml(r);
+    } else {
+      data += '<p class="purpose">SQLite 載入後顯示。</p>';
+    }
+    data += '</div>';
+    $('#tbl-detail').innerHTML = spec + data;
+  }
+
+  /* ---------- 3. query bench ---------- */
+  function renderQList() {
+    var h = '';
+    D.QUERIES.forEach(function (q, i) {
+      h += '<button class="qitem" type="button" role="listitem" data-q="' + q.id + '" aria-current="' + (q === state.q) + '"><span class="qn">Q' + (i + 1) + '</span><span class="qt">' + esc(q.title) + '</span><span class="tp">' + q.topic + '</span></button>';
+    });
+    $('#qlist').innerHTML = h;
+    document.querySelectorAll('.qlinks').forEach(function (el) {
+      el.innerHTML = el.getAttribute('data-q').split(',').map(function (id) {
+        var q = qById(id);
+        return '<button class="qlink" type="button" data-q="' + id + '" title="' + esc(q.title) + '">' + qNum(q) + ' ' + esc(q.title) + '</button>';
+      }).join('');
+    });
+  }
+  function selectQuery(q, scroll) {
+    state.q = q; state.variant = 0;
+    document.querySelectorAll('.qitem').forEach(function (b) { b.setAttribute('aria-current', String(b.dataset.q === q.id)); });
+    $('#q-topic').textContent = qNum(q) + ' · ' + q.topic;
+    $('#q-tables').innerHTML = '用到的表 ' + q.tables.map(function (t) { return '<span class="chip">' + t + '</span>'; }).join(' ');
+    $('#q-title').textContent = q.title;
+    $('#q-who').textContent = '情境：' + q.who;
+    $('#q-steps').innerHTML = q.steps.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('');
+    $('#sql-input').value = q.sql;
+    renderExpected();
+    if (SQL) runUser(); else { $('#act-out').innerHTML = '<div class="empty">尚未執行。</div>'; }
+    renderCompare();
+    if (scroll) document.getElementById('query').scrollIntoView();
+  }
+  function renderExpected() {
+    if (!SQL) return;
+    state.expected = run(state.q.sql);
+    $('#exp-cnt').textContent = countText(state.expected);
+    $('#exp-out').innerHTML = resultBlock(state.expected);
+  }
+  function runUser() {
+    var sql = $('#sql-input').value;
+    var act = run(sql), exp = state.expected;
+    $('#act-cnt').textContent = countText(act);
+    var badge = '', note = '', opt = {};
+    if (act.error !== undefined) {
+      badge = '<span class="badge bad">錯誤</span>';
+    } else if (act.noRows) {
+      badge = '<span class="badge warn">沒有回傳資料</span>';
+    } else {
+      var d = diffRows(exp, act);
+      var colsOk = sameCols(exp, act);
+      var sameSet = !d.extraInB.length && !d.missingInB.length;
+      var sameOrder = sameSet && keyOf(exp.values) === keyOf(act.values);
+      if (sameSet && colsOk && sameOrder) badge = '<span class="badge ok">與預期相同</span>';
+      else if (sameSet && colsOk) { badge = '<span class="badge warn">資料相同，順序不同</span>'; note = '每一列都對，但排列順序不同。檢查 ORDER BY。'; }
+      else {
+        badge = '<span class="badge bad">與預期不同</span>';
+        var parts = [];
+        if (!colsOk) parts.push('欄位不同（預期：' + exp.columns.join('、') + '）');
+        if (d.extraInB.length) parts.push('多了 ' + d.extraInB.length + ' 列（綠色 +）');
+        if (d.missingInB.length) parts.push('少了 ' + d.missingInB.length + ' 列（紅色 −，附在表格最後）');
+        note = parts.join('；') + '。';
+        var mark = {}; d.extraInB.forEach(function (i) { mark[i] = 'plus'; });
+        opt = { marks: true, mark: mark, missingRows: colsOk ? d.missingInB.map(function (i) { return exp.values[i]; }) : [] };
+      }
+    }
+    $('#act-badge').innerHTML = badge;
+    $('#act-out').innerHTML = resultBlock(act, opt) + (note ? '<p class="diffnote" style="margin-top:8px">' + esc(note) + '</p>' : '');
+  }
+
+  /* ---------- 4. compare ---------- */
+  function renderCompare() {
+    var q = state.q;
+    $('#cmp-q').textContent = qNum(q) + '　' + q.title;
+    $('#var-tabs').innerHTML = q.variants.map(function (v, i) {
+      return '<button class="tab" role="tab" type="button" data-v="' + i + '" aria-selected="' + (i === state.variant) + '">修改 ' + (i + 1) + '：' + esc(v.label) + '</button>';
+    }).join('');
+    var v = q.variants[state.variant];
+    var diff = lineDiff(q.sql, v.sql).map(function (p) { return '<span class="ln ' + p[0] + '">' + hl(p[1]) + '</span>'; }).join('');
+    var h = '<div class="explain">' +
+      '<div><span class="label">改了什麼</span><p>' + esc(v.change) + '</p></div>' +
+      '<div class="effect"><span class="label">結果怎麼變</span><p>' + esc(v.effect) + '</p></div>' +
+      '<div><span class="label">為什麼</span><p>' + esc(v.why) + '</p></div></div>';
+    h += '<div><span class="label">SQL 差異（+ 新增、− 刪除）</span><div class="codeview" style="margin-top:6px">' + diff + '</div></div>';
+    if (SQL) {
+      var a = state.expected || run(q.sql), b = run(v.sql);
+      var sum = '', optA = {}, optB = {};
+      if (b.error !== undefined) {
+        sum = '<span>原本 ' + a.values.length + ' 列</span><span class="arrow">→</span><span class="badge bad">修改後執行失敗</span>';
+      } else {
+        var d = diffRows(a, b);
+        var mA = {}, mB = {};
+        d.missingInB.forEach(function (i) { mA[i] = 'minus'; });
+        d.extraInB.forEach(function (i) { mB[i] = 'plus'; });
+        optA = { marks: true, mark: mA }; optB = { marks: true, mark: mB };
+        sum = '<span>原本 <b>' + a.values.length + '</b> 列</span><span class="arrow">→</span><span>修改後 <b>' + b.values.length + '</b> 列</span>';
+        if (!d.extraInB.length && !d.missingInB.length) sum += '<span class="badge ok">資料完全相同</span>';
+        if (d.extraInB.length) sum += '<span class="badge ok">+ ' + d.extraInB.length + ' 列</span>';
+        if (d.missingInB.length) sum += '<span class="badge bad">− ' + d.missingInB.length + ' 列</span>';
+        if (d.extraInB.length && d.missingInB.length) sum += '<span class="diffnote">數值改變的列，會以「舊的 −」和「新的 +」各出現一次</span>';
+      }
+      h += '<div class="cmp-sum">' + sum + '</div>';
+      h += '<div class="results"><div class="res"><div class="res-head"><h3>原 SQL 結果</h3><span class="cnt">' + countText(a) + '</span></div>' + resultBlock(a, optA) + '</div>' +
+        '<div class="res"><div class="res-head"><h3>修改後結果</h3><span class="cnt">' + countText(b) + '</span></div>' + resultBlock(b, optB) + '</div></div>';
+    }
+    h += '<div class="cmp-actions"><button class="btn primary" type="button" id="btn-try">把修改版放進編輯器</button><small>放進第 3 節的編輯器後，可以再自己改改看。</small></div>';
+    $('#cmp-card').innerHTML = h;
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.classList.contains('qitem') || b.classList.contains('qlink')) { selectQuery(qById(b.dataset.q), b.classList.contains('qlink')); return; }
+    if (b.dataset.t) { state.table = b.dataset.t; renderTableTabs(); renderTableDetail(); return; }
+    if (b.dataset.v !== undefined) { state.variant = +b.dataset.v; renderCompare(); return; }
+    if (b.id === 'btn-run') { runUser(); return; }
+    if (b.id === 'btn-reset') { $('#sql-input').value = state.q.sql; if (SQL) runUser(); return; }
+    if (b.id === 'btn-try') {
+      $('#sql-input').value = state.q.variants[state.variant].sql;
+      if (SQL) runUser();
+      document.querySelector('.editor').scrollIntoView({ block: 'start' });
+      $('#sql-input').focus({ preventScroll: true });
+    }
+  });
+  $('#sql-input').addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (SQL) runUser(); }
+    else if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      var t = e.target, s = t.selectionStart;
+      t.setRangeText('  ', s, t.selectionEnd, 'end');
+    }
+  });
+
+  /* ---------- boot ---------- */
+  renderTimetableSkeleton();
+  renderERD();
+  renderTableTabs();
+  renderTableDetail();
+  renderQList();
+  selectQuery(state.q, false);
+
+  function fail(msg) {
+    $('#status').classList.add('fail');
+    $('#status-text').textContent = msg;
+  }
+  if (typeof initSqlJs !== 'function') { fail('SQLite 無法載入，請檢查網路後重新整理'); return; }
+  initSqlJs().then(function (S) {
+    SQL = S;
+    var r = run("SELECT (SELECT COUNT(*) FROM department)+(SELECT COUNT(*) FROM teacher)+(SELECT COUNT(*) FROM student)+(SELECT COUNT(*) FROM course)+(SELECT COUNT(*) FROM course_time)+(SELECT COUNT(*) FROM enrollment)");
+    $('#status').classList.add('ready');
+    $('#status-text').textContent = 'SQLite 就緒 · 6 張表 · ' + r.values[0][0] + ' 筆資料';
+    $('#btn-run').disabled = false;
+    renderTimetable();
+    renderTableDetail();
+    selectQuery(state.q, false);
+  }).catch(function (e) { fail('SQLite 初始化失敗：' + e.message); });
+})();
+
+</script>
+
+</body>
+</html>
